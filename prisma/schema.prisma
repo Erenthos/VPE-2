@@ -8,22 +8,23 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique
-  password  String
-  role      Role      @default(VIEWER)
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String        @unique
+  password    String
+  role        Role          @default(VIEWER)
   evaluations Evaluation[]
-  createdAt DateTime  @default(now())
+  createdAt   DateTime      @default(now())
 }
 
 model Vendor {
-  id          Int          @id @default(autoincrement())
-  name        String
-  company     String?
-  email       String?
-  evaluations Evaluation[]
-  createdAt   DateTime     @default(now())
+  id           Int           @id @default(autoincrement())
+  name         String
+  company      String?
+  email        String?
+  evaluations  Evaluation[]
+  overallScore Float?        @default(0)
+  createdAt    DateTime      @default(now())
 }
 
 model Evaluation {
@@ -36,6 +37,15 @@ model Evaluation {
   vendor      Vendor   @relation(fields: [vendorId], references: [id])
   vendorId    Int
   createdAt   DateTime @default(now())
+
+  @@unique([vendorId, segment, evaluatorId])
+}
+
+model Segment {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  weight    Int      @default(10)
+  createdAt DateTime @default(now())
 }
 
 enum Role {
@@ -43,4 +53,3 @@ enum Role {
   EVALUATOR
   VIEWER
 }
-
