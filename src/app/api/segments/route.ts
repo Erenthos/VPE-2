@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 
-// 📍 GET – list all segments
+// 📍 GET — list all segments
 export async function GET() {
   try {
     const segments = await prisma.segment.findMany({ orderBy: { id: "asc" } });
@@ -12,7 +12,7 @@ export async function GET() {
   }
 }
 
-// 📍 POST – add a new segment
+// 📍 POST — add new segment
 export async function POST(req: Request) {
   try {
     const { name, weight } = await req.json();
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   }
 }
 
-// 📍 PUT – update segment weight
+// 📍 PUT — update existing segment weight
 export async function PUT(req: Request) {
   try {
     const { id, weight } = await req.json();
