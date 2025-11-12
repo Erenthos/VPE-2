@@ -10,11 +10,17 @@ export default function AdminPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) router.push("/auth/signin");
+    if (!token) {
+      router.push("/auth/signin");
+      return;
+    }
 
     try {
-      const payload = JSON.parse(atob(token!.split(".")[1]));
-      if (payload.role !== "ADMIN") router.push("/dashboard");
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (payload.role !== "ADMIN") {
+        router.push("/dashboard");
+        return;
+      }
       setUser(payload);
     } catch {
       router.push("/auth/signin");
@@ -34,7 +40,9 @@ export default function AdminPage() {
       <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
         Admin Control Panel
       </h1>
+
       <SegmentManager />
+
       <button
         onClick={() => {
           localStorage.removeItem("token");
