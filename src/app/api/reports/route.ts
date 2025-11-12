@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/src/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import html_to_pdf from "html-pdf-node";
 
 function generateHTML(vendor: any, evaluations: any[], totalScore: number) {
