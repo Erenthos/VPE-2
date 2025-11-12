@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import html_to_pdf from "html-pdf-node";
 
-// Convert evaluation data into styled HTML for PDF
-function generateHTML(vendor: any, evaluations: any[]) {
+function generateHTML(vendor: any, evaluations: any[], totalScore: number) {
   const rows = evaluations
     .map(
       (e) => `
@@ -25,6 +24,7 @@ function generateHTML(vendor: any, evaluations: any[]) {
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
         th { background: #eef2ff; }
+        .total { margin-top: 30px; font-size: 18px; font-weight: bold; text-align: right; color: #111827; }
       </style>
     </head>
     <body>
@@ -33,15 +33,11 @@ function generateHTML(vendor: any, evaluations: any[]) {
       <p>Company: ${vendor.company || "-"}<br>Email: ${vendor.email || "-"}</p>
       <table>
         <thead>
-          <tr>
-            <th>Segment</th>
-            <th>Score (0–10)</th>
-            <th>Comments</th>
-            <th>Evaluator</th>
-          </tr>
+          <tr><th>Segment</th><th>Score</th><th>Comments</th><th>Evaluator</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      <p class="total">Overall Weighted Score: ${totalScore.toFixed(2)} / 10</p>
     </body>
   </html>`;
 }
@@ -64,9 +60,8 @@ export async function GET(req: Request) {
       include: { evaluator: { select: { name: true, role: true } } },
     });
 
-    const html = generateHTML(vendor, evaluations);
-    const file = { content: html };
-    const pdfBuffer = await html_to_pdf.generatePdf(file, { format: "A4" });
+    const html = generateHTML(vendor, evaluations, vendor.overallScore || 0);
+    const pdfBuffer = await html_to_pdf.generatePdf({ content: html }, { format: "A4" });
 
     return new NextResponse(pdfBuffer, {
       headers: {
@@ -79,4 +74,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Error generating report" }, { status: 500 });
   }
 }
-
