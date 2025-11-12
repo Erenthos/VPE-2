@@ -2,33 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-interface User {
-  name: string;
-  email: string;
-  role: string;
-}
+import VendorList from "@/src/components/vendors/VendorList";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
+  const [showVendors, setShowVendors] = useState(false);
+  const [showEvaluate, setShowEvaluate] = useState(false);
 
+  // Decode user info from JWT
   useEffect(() => {
-    // Check if JWT token exists
     const token = localStorage.getItem("token");
     if (!token) {
       router.push("/auth/signin");
       return;
     }
 
-    // Decode token (only name, email, role)
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
-      setUser({
-        name: payload.name,
-        email: payload.email,
-        role: payload.role,
-      });
+      setUser(payload);
     } catch {
       router.push("/auth/signin");
     }
@@ -52,57 +44,57 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white flex flex-col items-center py-16 px-6">
       {/* Header */}
-      <h1 className="text-4xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+      <h1 className="text-4xl font-bold text-center mb-4 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
         Welcome, {user.name || "User"}
       </h1>
 
-      <p className="text-white/80 mb-10 text-center max-w-xl">
+      <p className="text-white/80 mb-12 text-center max-w-xl">
         You are logged in as{" "}
         <span
           className={`font-semibold bg-gradient-to-r ${roleColor} bg-clip-text text-transparent`}
         >
           {user.role}
         </span>
-        . Use the tools below to manage vendors and evaluations.
+        . Manage vendor performance efficiently below.
       </p>
 
-      {/* Dashboard Cards */}
+      {/* Dashboard Action Cards */}
       <div className="grid gap-8 grid-cols-1 md:grid-cols-3 w-full max-w-5xl">
         {/* Add Vendor */}
         <div
-          onClick={() => router.push("/api/vendors")}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition shadow-xl"
+          onClick={() => setShowVendors(true)}
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
-          <h3 className="text-xl font-semibold mb-3">Add Vendor</h3>
+          <h3 className="text-xl font-semibold mb-3">Add / View Vendors</h3>
           <p className="text-sm text-white/70">
-            Add a new vendor to the performance evaluation system.
+            Add new vendors or view existing ones.
           </p>
         </div>
 
-        {/* Evaluate Vendor */}
+        {/* Evaluate Vendors */}
         <div
-          onClick={() => router.push("/api/evaluations")}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition shadow-xl"
+          onClick={() => setShowEvaluate(true)}
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
           <h3 className="text-xl font-semibold mb-3">Evaluate Vendors</h3>
           <p className="text-sm text-white/70">
-            Rate vendors segment-wise and provide performance comments.
+            Rate vendors and add comments segment-wise.
           </p>
         </div>
 
-        {/* Generate Report */}
+        {/* Generate Reports */}
         <div
-          onClick={() => router.push("/api/reports")}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition shadow-xl"
+          onClick={() => router.push("/api/reports?vendorId=1")}
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
           <h3 className="text-xl font-semibold mb-3">View Reports</h3>
           <p className="text-sm text-white/70">
-            Download vendor performance reports with segment-wise ratings.
+            Download performance PDF reports for vendors.
           </p>
         </div>
       </div>
 
-      {/* Logout */}
+      {/* Logout Button */}
       <button
         onClick={() => {
           localStorage.removeItem("token");
@@ -112,7 +104,46 @@ export default function DashboardPage() {
       >
         Logout
       </button>
+
+      {/* Vendor Modal */}
+      {showVendors && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20 max-h-[80vh] overflow-y-auto w-full max-w-5xl shadow-2xl">
+            <h2 className="text-2xl font-bold mb-4 text-center">
+              Vendor Management
+            </h2>
+            <VendorList />
+            <div className="text-center mt-6">
+              <button
+                onClick={() => setShowVendors(false)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Evaluate Modal */}
+      {showEvaluate && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20 max-h-[80vh] overflow-y-auto w-full max-w-5xl shadow-2xl">
+            <h2 className="text-2xl font-bold mb-4 text-center">
+              Evaluate Vendors
+            </h2>
+            <VendorList />
+            <div className="text-center mt-6">
+              <button
+                onClick={() => setShowEvaluate(false)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
