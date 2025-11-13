@@ -7,13 +7,16 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
   const [responses, setResponses] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
-  // Load segments + questions + previous evaluations
   useEffect(() => {
     async function loadData() {
       setLoading(true);
 
-      // 1. load segments & questions
-      const segRes = await fetch("/api/segments-all"); // you already have SegmentManager using this
+      // Decode JWT
+      const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
+      const evaluatorId = token.id; // << FIXED
+
+      // 1. Load segments & questions
+      const segRes = await fetch("/api/segments-all");
       const segments = await segRes.json();
 
       let qList: any[] = [];
@@ -23,24 +26,21 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
             id: q.id,
             text: q.text,
             segment: `Q-${q.id}`,
-            weight: q.weight,
-            segmentName: s.name
+            segmentName: s.name,
+            weight: q.weight
           });
         });
       });
 
       setQuestions(qList);
 
-      // 2. load saved evaluations
-      const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-
+      // 2. Load previous evaluations for vendor + evaluator
       const evRes = await fetch(
-        `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${token.userId}`
+        `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluatorId}`
       );
 
       const existing = await evRes.json();
 
-      // 3. map existing answers to form state
       const mapped: any = {};
       existing.forEach((ev: any) => {
         mapped[ev.segment] = {
@@ -68,6 +68,7 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
 
   async function save() {
     const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
+    const evaluatorId = token.id; // << FIXED
 
     for (let q of questions) {
       const r = responses[q.segment] || { score: 0, comment: "" };
@@ -77,7 +78,7 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorId: vendor.id,
-          evaluatorId: token.userId,
+          evaluatorId: evaluatorId,
           segment: q.segment,
           score: r.score,
           comment: r.comment
@@ -99,7 +100,6 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
         Evaluate {vendor.name}
       </h3>
 
-      {/* QUESTIONS */}
       {questions.map((q) => (
         <div key={q.id} className="mb-6 p-3 bg-white/5 rounded-lg">
 
@@ -110,7 +110,7 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
             type="range"
             min={0}
             max={10}
-            value={(responses[q.segment]?.score) ?? 0}
+            value={responses[q.segment]?.score ?? 0}
             onChange={(e) =>
               setValue(q.segment, "score", Number(e.target.value))
             }
@@ -121,7 +121,7 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
             Score: {responses[q.segment]?.score ?? 0}
           </div>
 
-          {/* Comment box */}
+          {/* Comment */}
           <textarea
             placeholder="Add comment..."
             className="w-full mt-2 p-2 bg-white/10 border border-white/20 rounded"
