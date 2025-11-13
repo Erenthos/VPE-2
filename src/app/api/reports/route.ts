@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import PDFDocument from "pdfkit";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export async function GET(req: Request): Promise<Response> {
   try {
@@ -8,7 +8,10 @@ export async function GET(req: Request): Promise<Response> {
     const vendorId = searchParams.get("vendorId");
 
     if (!vendorId) {
-      return NextResponse.json({ error: "Missing vendorId" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing vendorId" },
+        { status: 400 }
+      );
     }
 
     const vendorIdNum = Number(vendorId);
@@ -18,21 +21,22 @@ export async function GET(req: Request): Promise<Response> {
     });
 
     if (!vendor) {
-      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Vendor not found" },
+        { status: 404 }
+      );
     }
 
-    // Load segments + questions
     const segments = await prisma.segment.findMany({
       include: { questions: true },
     });
 
-    // Load evaluations
     const evaluations = await prisma.evaluation.findMany({
       where: { vendorId: vendorIdNum },
       include: { evaluator: true },
     });
 
-    // Weighted score calculation
+    // Weighted scoring
     let totalWeighted = 0;
     let totalSegmentWeights = 0;
 
@@ -44,7 +48,7 @@ export async function GET(req: Request): Promise<Response> {
       let qWeightTotal = 0;
 
       for (const q of qs) {
-        const ev = evaluations.find(e => e.segment === `Q-${q.id}`);
+        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
         const score = ev ? ev.score : 0;
 
         qWeightedSum += score * q.weight;
@@ -57,76 +61,76 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     const finalScore =
-      totalSegmentWeights === 0 ? 0 : totalWeighted / totalSegmentWeights;
+      totalSegmentWeights === 0
+        ? 0
+        : totalWeighted / totalSegmentWeights;
 
-    // ──────────────────────────────────────────────
-    // Generate PDF into a buffer (NO STREAMS)
-    // ──────────────────────────────────────────────
+    // Create PDF
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage();
+    const { width, height } = page.getSize();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
 
-    const doc = new PDFDocument({ margin: 50 });
-    const buffers: Buffer[] = [];
+    let y = height - 50;
+    const lineHeight = 18;
 
-    doc.on("data", buffers.push.bind(buffers));
-    doc.on("end", () => {});
+    function write(text: string, size = 12) {
+      page.drawText(text, {
+        x: 50,
+        y,
+        size,
+        font,
+        color: rgb(0, 0, 0),
+      });
+      y -= lineHeight;
+    }
 
-    // PDF contents
-    doc.fontSize(20).text("Vendor Performance Report", { align: "center" });
-    doc.moveDown();
+    // Header
+    write("Vendor Performance Report", 20);
+    y -= 10;
 
-    doc.fontSize(12).text(`Vendor Name: ${vendor.name}`);
-    doc.text(`Company: ${vendor.company || "-"}`);
-    doc.text(`Email: ${vendor.email || "-"}`);
-    doc.moveDown(1.5);
+    // Vendor info
+    write(`Vendor Name: ${vendor.name}`);
+    write(`Company: ${vendor.company || "-"}`);
+    write(`Email: ${vendor.email || "-"}`);
+    y -= 10;
 
-    doc.fontSize(14).text("Evaluations:", { underline: true });
-    doc.moveDown();
+    write("Evaluations:", 16);
+    y -= 10;
 
-    doc.fontSize(12);
-    doc.text("Question", 50, doc.y, { continued: true });
-    doc.text("Score", 250, doc.y, { continued: true });
-    doc.text("Comment", 310, doc.y, { continued: true });
-    doc.text("Evaluator", 450, doc.y);
-    doc.moveDown();
+    // Table header
+    write("Question                    Score    Comment                 Evaluator", 12);
 
+    // Rows
     for (const seg of segments) {
       for (const q of seg.questions) {
-        const ev = evaluations.find(e => e.segment === `Q-${q.id}`);
+        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
 
-        doc.text(q.text, 50, doc.y, { continued: true });
-        doc.text(ev ? ev.score.toString() : "-", 250, doc.y, { continued: true });
-        doc.text(ev ? ev.comment || "-" : "-", 310, doc.y, { continued: true });
-        doc.text(
-          ev ? `${ev.evaluator.name} (${ev.evaluator.role})` : "-",
-          450, doc.y
+        write(
+          `${q.text.substring(0, 25).padEnd(28)}  ${
+            ev ? ev.score : "-"
+          }        ${(ev ? ev.comment || "-" : "-").substring(0, 20).padEnd(
+            22
+          )} ${ev ? ev.evaluator.name : "-"}`
         );
-
-        doc.moveDown();
       }
     }
 
-    doc.moveDown(2);
+    y -= 20;
 
-    doc.fontSize(14).text(
-      `Overall Weighted Score: ${finalScore.toFixed(2)} / 10`,
-      { align: "left" }
-    );
+    write(`Overall Weighted Score: ${finalScore.toFixed(2)} / 10`, 14);
 
-    doc.end();
+    // Output PDF
+    const pdfBytes = await pdf.save();
 
-    // Final buffer
-    const pdfBuffer = await new Promise<Buffer>((resolve) => {
-      doc.on("end", () => resolve(Buffer.concat(buffers)));
-    });
-
-    return new Response(pdfBuffer, {
+    return new Response(pdfBytes, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Vendor_Report_${vendor.name}.pdf"`
-      }
+        "Content-Disposition": `attachment; filename="Vendor_Report_${vendor.name}.pdf"`,
+      },
     });
-
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error("PDF Report Error:", err);
     return NextResponse.json(
       { error: "Failed to generate report" },
       { status: 500 }
