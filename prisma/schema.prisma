@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+//
+// ──────────────────────────────────────────
+// USER MODEL
+// ──────────────────────────────────────────
+//
 model User {
   id          Int          @id @default(autoincrement())
   name        String
@@ -17,6 +22,17 @@ model User {
   createdAt   DateTime      @default(now())
 }
 
+enum Role {
+  ADMIN
+  EVALUATOR
+  VIEWER
+}
+
+//
+// ──────────────────────────────────────────
+// VENDOR MODEL
+// ──────────────────────────────────────────
+//
 model Vendor {
   id           Int           @id @default(autoincrement())
   name         String
@@ -27,29 +43,62 @@ model Vendor {
   createdAt    DateTime      @default(now())
 }
 
+//
+// ──────────────────────────────────────────
+// SEGMENT MODEL
+// ──────────────────────────────────────────
+//
+model Segment {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  weight    Int        @default(10)      // Segment-level weight %
+  questions Question[]                   // ← One-to-many (segment → questions)
+  createdAt DateTime   @default(now())
+}
+
+//
+// ──────────────────────────────────────────
+// QUESTION MODEL (NEW)
+// ──────────────────────────────────────────
+//
+model Question {
+  id        Int      @id @default(autoincrement())
+  text      String
+  weight    Int      @default(10)        // Question-level weight %
+  createdAt DateTime @default(now())
+
+  segment   Segment  @relation(fields: [segmentId], references: [id])
+  segmentId Int
+}
+
+//
+// ──────────────────────────────────────────
+// EVALUATION MODEL
+// ──────────────────────────────────────────
+//  Each evaluation entry is:
+//   ✓ For one vendor
+//   ✓ For one evaluator
+//   ✓ For one segment OR question (your next UI step)
+//
 model Evaluation {
   id          Int      @id @default(autoincrement())
+
+  // final score (0–10)
   score       Int
+
+  // evaluator comments
   comment     String?
+
+  // segment name (text-based)
   segment     String
+
   evaluator   User     @relation(fields: [evaluatorId], references: [id])
   evaluatorId Int
+
   vendor      Vendor   @relation(fields: [vendorId], references: [id])
   vendorId    Int
+
   createdAt   DateTime @default(now())
 
   @@unique([vendorId, segment, evaluatorId])
-}
-
-model Segment {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  weight    Int      @default(10)
-  createdAt DateTime @default(now())
-}
-
-enum Role {
-  ADMIN
-  EVALUATOR
-  VIEWER
 }
