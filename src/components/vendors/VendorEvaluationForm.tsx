@@ -7,50 +7,60 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
   const [responses, setResponses] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
+  // Re-mount the form when vendor changes (CRITICAL FIX)
+  useEffect(() => {
+    setQuestions([]);
+    setResponses({});
+    setLoading(true);
+  }, [vendor]);
+
+  // Load questions + existing evaluations
   useEffect(() => {
     async function loadData() {
-      setLoading(true);
+      try {
+        // Decode JWT
+        const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
+        const evaluatorId = token.id;
 
-      // Decode JWT
-      const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-      const evaluatorId = token.id; // << FIXED
+        // 1. Load segments + questions
+        const segRes = await fetch("/api/segments-all");
+        const segments = await segRes.json();
 
-      // 1. Load segments & questions
-      const segRes = await fetch("/api/segments-all");
-      const segments = await segRes.json();
-
-      let qList: any[] = [];
-      segments.forEach((s: any) => {
-        s.questions.forEach((q: any) => {
-          qList.push({
-            id: q.id,
-            text: q.text,
-            segment: `Q-${q.id}`,
-            segmentName: s.name,
-            weight: q.weight
+        let qList: any[] = [];
+        segments.forEach((s: any) => {
+          s.questions.forEach((q: any) => {
+            qList.push({
+              id: q.id,
+              text: q.text,
+              segment: `Q-${q.id}`,
+              segmentName: s.name,
+              weight: q.weight,
+            });
           });
         });
-      });
 
-      setQuestions(qList);
+        setQuestions(qList);
 
-      // 2. Load previous evaluations for vendor + evaluator
-      const evRes = await fetch(
-        `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluatorId}`
-      );
+        // 2. Load previously saved evaluations
+        const evRes = await fetch(
+          `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluatorId}`
+        );
+        const existing = await evRes.json();
 
-      const existing = await evRes.json();
+        const mapped: any = {};
+        existing.forEach((ev: any) => {
+          mapped[ev.segment] = {
+            score: ev.score,
+            comment: ev.comment || "",
+          };
+        });
 
-      const mapped: any = {};
-      existing.forEach((ev: any) => {
-        mapped[ev.segment] = {
-          score: ev.score,
-          comment: ev.comment || ""
-        };
-      });
+        setResponses(mapped);
 
-      setResponses(mapped);
-      setLoading(false);
+      } finally {
+        // Only stop loading AFTER questions + evaluations are both loaded
+        setLoading(false);
+      }
     }
 
     loadData();
@@ -61,14 +71,14 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
       ...prev,
       [segment]: {
         ...prev[segment],
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   }
 
   async function save() {
     const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-    const evaluatorId = token.id; // << FIXED
+    const evaluatorId = token.id;
 
     for (let q of questions) {
       const r = responses[q.segment] || { score: 0, comment: "" };
@@ -78,11 +88,11 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorId: vendor.id,
-          evaluatorId: evaluatorId,
+          evaluatorId,
           segment: q.segment,
           score: r.score,
-          comment: r.comment
-        })
+          comment: r.comment,
+        }),
       });
     }
 
@@ -90,19 +100,22 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
     onClose();
   }
 
-  if (loading) {
-    return <div className="text-center p-4">Loading evaluation...</div>;
+  // DO NOT render sliders until everything is fully loaded
+  if (loading || questions.length === 0) {
+    return <div className="text-center p-4">Loading previous evaluation...</div>;
   }
 
   return (
-    <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur">
+    <div
+      key={vendor.id} // <- CRITICAL: Forces full re-render
+      className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur"
+    >
       <h3 className="text-xl font-semibold mb-4">
         Evaluate {vendor.name}
       </h3>
 
       {questions.map((q) => (
         <div key={q.id} className="mb-6 p-3 bg-white/5 rounded-lg">
-
           <div className="font-semibold mb-2">{q.text}</div>
 
           {/* Slider */}
