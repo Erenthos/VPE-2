@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
 
-  // Modal visibility states
+  // Modal states
   const [showVendors, setShowVendors] = useState(false);
   const [showEvaluate, setShowEvaluate] = useState(false);
   const [showReports, setShowReports] = useState(false);
@@ -79,18 +79,20 @@ export default function DashboardPage() {
           <p className="text-sm text-white/70">Search, add or view vendors.</p>
         </div>
 
-        {/* Evaluate Vendors */}
-        <div
-          onClick={() => {
-            setSelectedVendor(null);
-            setShowEvaluate(true);
-          }}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 
-          backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
-        >
-          <h3 className="text-xl font-semibold mb-3">Evaluate Vendors</h3>
-          <p className="text-sm text-white/70">Search vendor and evaluate.</p>
-        </div>
+        {/* Evaluate Vendors — ONLY ADMIN + EVALUATOR */}
+        {(user.role === "ADMIN" || user.role === "EVALUATOR") && (
+          <div
+            onClick={() => {
+              setSelectedVendor(null);
+              setShowEvaluate(true);
+            }}
+            className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 
+            backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+          >
+            <h3 className="text-xl font-semibold mb-3">Evaluate Vendors</h3>
+            <p className="text-sm text-white/70">Search vendor and evaluate.</p>
+          </div>
+        )}
 
         {/* View Reports */}
         <div
@@ -102,7 +104,7 @@ export default function DashboardPage() {
           <p className="text-sm text-white/70">Search vendor and download report.</p>
         </div>
 
-        {/* ADMIN PANEL CARD */}
+        {/* ADMIN PANEL */}
         {user.role === "ADMIN" && (
           <div
             onClick={() => setShowAdmin(true)}
@@ -119,7 +121,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Logout Button */}
+      {/* Logout */}
       <button
         className="mt-12 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 transition font-medium"
         onClick={() => {
@@ -130,9 +132,9 @@ export default function DashboardPage() {
         Logout
       </button>
 
-      {/* ------------------------ MODALS ------------------------ */}
+      {/* --------------------- MODALS --------------------- */}
 
-      {/* Add / View Vendors Modal */}
+      {/* Add / View Vendors */}
       {showVendors && (
         <Modal onClose={() => setShowVendors(false)}>
           <h2 className="text-2xl font-bold mb-4 text-center">Vendor Management</h2>
@@ -140,8 +142,8 @@ export default function DashboardPage() {
         </Modal>
       )}
 
-      {/* Evaluate Vendors Modal */}
-      {showEvaluate && (
+      {/* Evaluate Vendors — only for admin/evaluator */}
+      {(user.role === "ADMIN" || user.role === "EVALUATOR") && showEvaluate && (
         <Modal onClose={() => { setShowEvaluate(false); setSelectedVendor(null); }}>
           <h2 className="text-2xl font-bold mb-4 text-center">Evaluate Vendors</h2>
 
@@ -161,7 +163,7 @@ export default function DashboardPage() {
         </Modal>
       )}
 
-      {/* View Reports Modal */}
+      {/* View Reports */}
       {showReports && (
         <Modal onClose={() => setShowReports(false)}>
           <h2 className="text-2xl font-bold mb-4 text-center">Download Vendor Reports</h2>
@@ -169,7 +171,7 @@ export default function DashboardPage() {
         </Modal>
       )}
 
-      {/* Admin Panel Modal */}
+      {/* Admin Panel */}
       {showAdmin && (
         <Modal onClose={() => setShowAdmin(false)}>
           <h2 className="text-2xl font-bold mb-4 text-center">Admin Panel — Manage Segments & Questions</h2>
@@ -181,7 +183,7 @@ export default function DashboardPage() {
   );
 }
 
-/* ------------------------ SHARED MODAL COMPONENT ------------------------ */
+/* ---------------- SHARED MODAL COMPONENT ---------------- */
 
 function Modal({ onClose, children }: any) {
   return (
