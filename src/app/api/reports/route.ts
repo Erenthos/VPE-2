@@ -24,122 +24,106 @@ export async function GET(req: Request): Promise<Response> {
       orderBy: { segment: "asc" }
     });
 
-    // Compute overall score — simple average
     const totalScore = evaluations.reduce((sum, e) => sum + e.score, 0);
     const maxScore = evaluations.length * 10;
     const weightedScore = evaluations.length ? (totalScore / maxScore) * 10 : 0;
 
-    // Create PDF
-    const doc = new PDFDocument({ size: "A4", margin: 40 });
+    /* 🔥 FIX: Embed standard fonts so Vercel does NOT load AFM files */
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: 40,
+      embedStandardFonts: true,   // <<<<<< THE FIX
+      pdfVersion: "1.7"
+    });
 
     const chunks: Buffer[] = [];
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => {});
 
-    /* =======================
-       HEADER SECTION
-    ======================== */
-    doc.rect(0, 0, doc.page.width, 90)
-      .fill("#3B82F6"); // Blue header
-
+    /* HEADER */
+    doc.rect(0, 0, doc.page.width, 80).fill("#3B82F6");
     doc.fillColor("#FFFFFF")
+      .font("Times-Bold")
       .fontSize(24)
-      .text("Vendor Performance Report", 40, 30);
+      .text("Vendor Performance Report", 40, 25);
 
     doc.moveDown(2);
 
-    /* =======================
-       VENDOR DETAILS CARD
-    ======================== */
-    doc.fillColor("#000000")
-      .fontSize(14)
-      .text(`Vendor Name: `, { continued: true })
-      .font("Helvetica-Bold")
-      .text(vendor.name);
+    /* VENDOR DETAILS */
+    doc.fillColor("#000000").font("Times-Roman").fontSize(14);
 
-    doc.font("Helvetica")
-      .text(`Company: `, { continued: true })
-      .font("Helvetica-Bold")
-      .text(vendor.company || "-");
+    doc.text(`Vendor Name: `, { continued: true })
+      .font("Times-Bold").text(vendor.name);
 
-    doc.font("Helvetica")
-      .text(`Email: `, { continued: true })
-      .font("Helvetica-Bold")
-      .text(vendor.email || "-");
+    doc.font("Times-Roman").text(`Company: `, { continued: true })
+      .font("Times-Bold").text(vendor.company || "-");
+
+    doc.font("Times-Roman").text(`Email: `, { continued: true })
+      .font("Times-Bold").text(vendor.email || "-");
 
     doc.moveDown(1.5);
 
-    /* =======================
-       TABLE HEADER
-    ======================== */
+    /* TABLE HEADER */
     const tableTop = doc.y + 10;
 
-    doc.rect(40, tableTop, doc.page.width - 80, 30)
-      .fill("#1E293B"); // Slate header
+    doc.rect(40, tableTop, doc.page.width - 80, 30).fill("#1E293B");
+    doc.fillColor("#FFFFFF")
+      .font("Times-Bold")
+      .fontSize(12)
+      .text("Question", 50, tableTop + 8)
+      .text("Score", 260, tableTop + 8)
+      .text("Comment", 330, tableTop + 8)
+      .text("Evaluator", 500, tableTop + 8);
 
-    doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(12);
-    doc.text("Question", 50, tableTop + 8);
-    doc.text("Score", 260, tableTop + 8);
-    doc.text("Comment", 330, tableTop + 8);
-    doc.text("Evaluator", 500, tableTop + 8);
-
-    /* =======================
-       TABLE ROWS
-    ======================== */
+    /* ROWS */
     let y = tableTop + 30;
 
     evaluations.forEach((ev, i) => {
-      const bgColor = i % 2 === 0 ? "#F1F5F9" : "#E2E8F0";
+      const bg = i % 2 === 0 ? "#F1F5F9" : "#E2E8F0";
 
-      // Row background
-      doc.rect(40, y, doc.page.width - 80, 28)
-        .fill(bgColor);
+      doc.rect(40, y, doc.page.width - 80, 26).fill(bg);
 
-      doc.fillColor("#000000")
-        .font("Helvetica")
-        .fontSize(11);
+      doc.fillColor("#000000").font("Times-Roman").fontSize(11);
 
-      doc.text(ev.segment, 50, y + 8);
-      doc.text(ev.score.toString(), 260, y + 8);
-      doc.text(ev.comment || "-", 330, y + 8);
-      doc.text(`eval ${ev.evaluatorId}`, 500, y + 8);
+      doc.text(ev.segment, 50, y + 6);
+      doc.text(ev.score.toString(), 260, y + 6);
+      doc.text(ev.comment || "-", 330, y + 6);
+      doc.text(`eval ${ev.evaluatorId}`, 500, y + 6);
 
-      y += 28;
+      y += 26;
 
-      if (y > 750) {
+      if (y > 740) {
         doc.addPage();
         y = 40;
       }
     });
 
-    doc.moveDown(2);
-
-    /* =======================
-       OVERALL SCORE BOX
-    ======================== */
-    doc.rect(40, y + 20, doc.page.width - 80, 80)
-      .fill("#FACC15"); // Yellow box
+    /* SCORE BOX */
+    doc.rect(40, y + 20, doc.page.width - 80, 70)
+      .fill("#FACC15");
 
     doc.fillColor("#000000")
-      .font("Helvetica-Bold")
-      .fontSize(22)
-      .text("Overall Score", 60, y + 35);
+      .font("Times-Bold")
+      .fontSize(20)
+      .text("Overall Score:", 60, y + 40);
 
-    doc.font("Helvetica")
-      .fontSize(16)
-      .text(`${weightedScore.toFixed(2)} / 10`, 300, y + 38);
+    doc.font("Times-Bold")
+      .fontSize(18)
+      .text(`${weightedScore.toFixed(2)} / 10`, 260, y + 42);
 
     doc.end();
 
-    const pdfBuffer = Buffer.concat(chunks);
-    return new Response(pdfBuffer, {
+    const pdf = Buffer.concat(chunks);
+
+    return new Response(pdf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=vendor_${vendor.id}_report.pdf`,
-      },
+        "Content-Disposition": `attachment; filename=vendor_${vendor.id}_report.pdf`
+      }
     });
+
   } catch (err) {
-    console.error(err);
+    console.error("PDF ERROR:", err);
     return NextResponse.json({ error: "Failed to generate report" }, { status: 500 });
   }
 }
