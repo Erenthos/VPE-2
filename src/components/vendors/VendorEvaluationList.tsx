@@ -5,9 +5,10 @@ import VendorEvaluationForm from "./VendorEvaluationForm";
 
 export default function VendorEvaluationList() {
   const [vendors, setVendors] = useState<any[]>([]);
-  const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
 
+  // Load vendor list
   async function loadVendors() {
     setLoading(true);
     const res = await fetch("/api/vendors");
@@ -22,8 +23,8 @@ export default function VendorEvaluationList() {
 
   if (selectedVendor) {
     return (
-      <VendorEvaluationForm 
-        vendor={selectedVendor} 
+      <VendorEvaluationForm
+        vendor={selectedVendor}
         onClose={() => setSelectedVendor(null)}
       />
     );
@@ -47,22 +48,26 @@ export default function VendorEvaluationList() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="text-center p-4">Loading…</td>
+                <td colSpan={4} className="text-center p-4">
+                  Loading...
+                </td>
               </tr>
             ) : vendors.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center p-4">No vendors found</td>
+                <td colSpan={4} className="text-center p-4">
+                  No vendors found
+                </td>
               </tr>
             ) : (
               vendors.map((vendor) => (
-                <tr key={vendor.id} className="border-t border-white/20">
+                <tr key={vendor.id} className="border-t border-white/10">
                   <td className="p-3">{vendor.name}</td>
-                  <td className="p-3">{vendor.company}</td>
-                  <td className="p-3">{vendor.email}</td>
+                  <td className="p-3">{vendor.company || "-"}</td>
+                  <td className="p-3">{vendor.email || "-"}</td>
                   <td className="p-3 text-center">
                     <button
                       onClick={() => setSelectedVendor(vendor)}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm"
+                      className="px-4 py-1 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm"
                     >
                       Evaluate
                     </button>
