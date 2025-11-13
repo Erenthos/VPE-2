@@ -1,49 +1,48 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET — fetch existing evaluations for vendor + evaluator
+// GET: Shared evaluations across all evaluators
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const vendorId = Number(searchParams.get("vendorId"));
-  const evaluatorId = Number(searchParams.get("evaluatorId"));
 
-  if (!vendorId || !evaluatorId) {
-    return NextResponse.json([], { status: 200 });
-  }
+  if (!vendorId) return NextResponse.json([]);
 
+  // Fetch latest evaluator's evaluations
   const evaluations = await prisma.evaluation.findMany({
-    where: {
-      vendorId,
-      evaluatorId
-    }
+    where: { vendorId },
+    orderBy: { createdAt: "desc" }
   });
 
-  return NextResponse.json(evaluations);
+  // Convert into a map: latest record per segment
+  const latestMap: any = {};
+  evaluations.forEach(ev => {
+    latestMap[ev.segment] = ev;
+  });
+
+  return NextResponse.json(Object.values(latestMap));
 }
 
-// POST — create or update evaluation
+// POST: Overwrite shared evaluation regardless of evaluator
 export async function POST(req: Request) {
-  const data = await req.json();
+  const { vendorId, evaluatorId, segment, score, comment } = await req.json();
 
-  const { vendorId, evaluatorId, segment, score, comment } = data;
+  // Use a fixed evaluatorId to maintain single-record logic
+  const fixedEvaluatorId = 1; // << force shared evaluation
 
-  // Upsert: create if not exist, update if exist
   const saved = await prisma.evaluation.upsert({
     where: {
       vendorId_segment_evaluatorId: {
         vendorId,
         segment,
-        evaluatorId
+        evaluatorId: fixedEvaluatorId
       }
     },
-    update: {
-      score,
-      comment
-    },
+    update: { score, comment },
     create: {
       vendorId,
-      evaluatorId,
       segment,
+      evaluatorId: fixedEvaluatorId,
       score,
       comment
     }
