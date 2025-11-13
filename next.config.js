@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  experimental: {
-    serverActions: true
-  }
+  webpack: (config) => {
+    // Ignore ALL .map files (fix chrome-aws-lambda source map crash)
+    config.module.rules.push({
+      test: /\.map$/,
+      type: "asset/source",
+    });
+
+    return config;
+  },
 };
 
 module.exports = nextConfig;
-
