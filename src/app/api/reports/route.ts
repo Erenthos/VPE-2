@@ -28,29 +28,32 @@ export async function GET(req: Request): Promise<Response> {
     const maxScore = evaluations.length * 10;
     const weightedScore = evaluations.length ? (totalScore / maxScore) * 10 : 0;
 
-    /* 🔥 FIX: Embed standard fonts so Vercel does NOT load AFM files */
-    const doc = new PDFDocument({
-      size: "A4",
-      margin: 40,
-      embedStandardFonts: true,   // <<<<<< THE FIX
-      pdfVersion: "1.7"
-    });
+    /* IMPORTANT FIX:
+       Create doc, then IMMEDIATELY set a safe font
+    */
+    const doc = new PDFDocument({ size: "A4", margin: 40 });
 
     const chunks: Buffer[] = [];
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => {});
 
+    // FIX: set font BEFORE writing anything
+    doc.font("Times-Roman");
+
     /* HEADER */
     doc.rect(0, 0, doc.page.width, 80).fill("#3B82F6");
+
     doc.fillColor("#FFFFFF")
-      .font("Times-Bold")
+      .font("Times-Bold") // safe font
       .fontSize(24)
       .text("Vendor Performance Report", 40, 25);
 
     doc.moveDown(2);
 
     /* VENDOR DETAILS */
-    doc.fillColor("#000000").font("Times-Roman").fontSize(14);
+    doc.fillColor("#000000")
+      .font("Times-Roman")
+      .fontSize(14);
 
     doc.text(`Vendor Name: `, { continued: true })
       .font("Times-Bold").text(vendor.name);
@@ -66,7 +69,9 @@ export async function GET(req: Request): Promise<Response> {
     /* TABLE HEADER */
     const tableTop = doc.y + 10;
 
-    doc.rect(40, tableTop, doc.page.width - 80, 30).fill("#1E293B");
+    doc.rect(40, tableTop, doc.page.width - 80, 30)
+      .fill("#1E293B");
+
     doc.fillColor("#FFFFFF")
       .font("Times-Bold")
       .fontSize(12)
@@ -75,7 +80,7 @@ export async function GET(req: Request): Promise<Response> {
       .text("Comment", 330, tableTop + 8)
       .text("Evaluator", 500, tableTop + 8);
 
-    /* ROWS */
+    /* TABLE ROWS */
     let y = tableTop + 30;
 
     evaluations.forEach((ev, i) => {
@@ -83,7 +88,9 @@ export async function GET(req: Request): Promise<Response> {
 
       doc.rect(40, y, doc.page.width - 80, 26).fill(bg);
 
-      doc.fillColor("#000000").font("Times-Roman").fontSize(11);
+      doc.fillColor("#000000")
+        .font("Times-Roman")
+        .fontSize(11);
 
       doc.text(ev.segment, 50, y + 6);
       doc.text(ev.score.toString(), 260, y + 6);
@@ -94,6 +101,7 @@ export async function GET(req: Request): Promise<Response> {
 
       if (y > 740) {
         doc.addPage();
+        doc.font("Times-Roman"); // reset font after page break
         y = 40;
       }
     });
