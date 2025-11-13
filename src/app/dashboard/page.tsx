@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import VendorList from "@/src/components/vendors/VendorList";
+import VendorList from "@/components/vendors/VendorList";
 
 export default function DashboardPage() {
   const router = useRouter();
