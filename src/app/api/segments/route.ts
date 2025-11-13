@@ -1,48 +1,55 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// 📍 GET — list all segments
 export async function GET() {
-  try {
-    const segments = await prisma.segment.findMany({ orderBy: { id: "asc" } });
-    return NextResponse.json(segments);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error fetching segments" }, { status: 500 });
-  }
+  const segments = await prisma.segment.findMany({
+    orderBy: { id: "asc" }
+  });
+  return NextResponse.json(segments);
 }
 
-// 📍 POST — add new segment
 export async function POST(req: Request) {
   try {
     const { name, weight } = await req.json();
-    if (!name) return NextResponse.json({ error: "Segment name required" }, { status: 400 });
 
     const segment = await prisma.segment.create({
-      data: { name, weight: weight ? Number(weight) : 10 },
+      data: { name, weight: Number(weight) }
     });
 
-    return NextResponse.json({ message: "Segment added", segment });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error adding segment" }, { status: 500 });
+    return NextResponse.json(segment);
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Failed to create segment" }, { status: 500 });
   }
 }
 
-// 📍 PUT — update existing segment weight
 export async function PUT(req: Request) {
   try {
-    const { id, weight } = await req.json();
-    if (!id) return NextResponse.json({ error: "Segment ID required" }, { status: 400 });
+    const { id, name, weight } = await req.json();
 
-    const updated = await prisma.segment.update({
+    const segment = await prisma.segment.update({
       where: { id: Number(id) },
-      data: { weight: Number(weight) },
+      data: { name, weight: Number(weight) },
     });
 
-    return NextResponse.json({ message: "Segment updated", updated });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error updating segment" }, { status: 500 });
+    return NextResponse.json(segment);
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Failed to update segment" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { id } = await req.json();
+
+    await prisma.segment.delete({
+      where: { id: Number(id) },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Failed to delete segment" }, { status: 500 });
   }
 }
