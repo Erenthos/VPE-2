@@ -1,139 +1,145 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import PDFDocument from "pdfkit";
 
 export async function GET(req: Request): Promise<Response> {
   try {
     const { searchParams } = new URL(req.url);
-    const vendorId = searchParams.get("vendorId");
+    const vendorId = Number(searchParams.get("vendorId"));
 
     if (!vendorId) {
-      return NextResponse.json(
-        { error: "Missing vendorId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid vendorId" }, { status: 400 });
     }
 
-    const vendorIdNum = Number(vendorId);
-
     const vendor = await prisma.vendor.findUnique({
-      where: { id: vendorIdNum },
+      where: { id: vendorId },
     });
 
     if (!vendor) {
-      return NextResponse.json(
-        { error: "Vendor not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
     }
-
-    const segments = await prisma.segment.findMany({
-      include: { questions: true },
-    });
 
     const evaluations = await prisma.evaluation.findMany({
-      where: { vendorId: vendorIdNum },
-      include: { evaluator: true },
+      where: { vendorId },
+      orderBy: { segment: "asc" }
     });
 
-    // Weighted scoring
-    let totalWeighted = 0;
-    let totalSegmentWeights = 0;
-
-    for (const seg of segments) {
-      const qs = seg.questions;
-      if (qs.length === 0) continue;
-
-      let qWeightedSum = 0;
-      let qWeightTotal = 0;
-
-      for (const q of qs) {
-        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
-        const score = ev ? ev.score : 0;
-
-        qWeightedSum += score * q.weight;
-        qWeightTotal += q.weight;
-      }
-
-      const segmentScore = qWeightedSum / qWeightTotal;
-      totalWeighted += segmentScore * seg.weight;
-      totalSegmentWeights += seg.weight;
-    }
-
-    const finalScore =
-      totalSegmentWeights === 0
-        ? 0
-        : totalWeighted / totalSegmentWeights;
+    // Compute overall score — simple average
+    const totalScore = evaluations.reduce((sum, e) => sum + e.score, 0);
+    const maxScore = evaluations.length * 10;
+    const weightedScore = evaluations.length ? (totalScore / maxScore) * 10 : 0;
 
     // Create PDF
-    const pdf = await PDFDocument.create();
-    const page = pdf.addPage();
-    const { width, height } = page.getSize();
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const doc = new PDFDocument({ size: "A4", margin: 40 });
 
-    let y = height - 50;
-    const lineHeight = 18;
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => {});
 
-    function write(text: string, size = 12) {
-      page.drawText(text, {
-        x: 50,
-        y,
-        size,
-        font,
-        color: rgb(0, 0, 0),
-      });
-      y -= lineHeight;
-    }
+    /* =======================
+       HEADER SECTION
+    ======================== */
+    doc.rect(0, 0, doc.page.width, 90)
+      .fill("#3B82F6"); // Blue header
 
-    // Header
-    write("Vendor Performance Report", 20);
-    y -= 10;
+    doc.fillColor("#FFFFFF")
+      .fontSize(24)
+      .text("Vendor Performance Report", 40, 30);
 
-    // Vendor info
-    write(`Vendor Name: ${vendor.name}`);
-    write(`Company: ${vendor.company || "-"}`);
-    write(`Email: ${vendor.email || "-"}`);
-    y -= 10;
+    doc.moveDown(2);
 
-    write("Evaluations:", 16);
-    y -= 10;
+    /* =======================
+       VENDOR DETAILS CARD
+    ======================== */
+    doc.fillColor("#000000")
+      .fontSize(14)
+      .text(`Vendor Name: `, { continued: true })
+      .font("Helvetica-Bold")
+      .text(vendor.name);
 
-    // Table header
-    write("Question                    Score    Comment                 Evaluator", 12);
+    doc.font("Helvetica")
+      .text(`Company: `, { continued: true })
+      .font("Helvetica-Bold")
+      .text(vendor.company || "-");
 
-    // Rows
-    for (const seg of segments) {
-      for (const q of seg.questions) {
-        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
+    doc.font("Helvetica")
+      .text(`Email: `, { continued: true })
+      .font("Helvetica-Bold")
+      .text(vendor.email || "-");
 
-        write(
-          `${q.text.substring(0, 25).padEnd(28)}  ${
-            ev ? ev.score : "-"
-          }        ${(ev ? ev.comment || "-" : "-").substring(0, 20).padEnd(
-            22
-          )} ${ev ? ev.evaluator.name : "-"}`
-        );
+    doc.moveDown(1.5);
+
+    /* =======================
+       TABLE HEADER
+    ======================== */
+    const tableTop = doc.y + 10;
+
+    doc.rect(40, tableTop, doc.page.width - 80, 30)
+      .fill("#1E293B"); // Slate header
+
+    doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(12);
+    doc.text("Question", 50, tableTop + 8);
+    doc.text("Score", 260, tableTop + 8);
+    doc.text("Comment", 330, tableTop + 8);
+    doc.text("Evaluator", 500, tableTop + 8);
+
+    /* =======================
+       TABLE ROWS
+    ======================== */
+    let y = tableTop + 30;
+
+    evaluations.forEach((ev, i) => {
+      const bgColor = i % 2 === 0 ? "#F1F5F9" : "#E2E8F0";
+
+      // Row background
+      doc.rect(40, y, doc.page.width - 80, 28)
+        .fill(bgColor);
+
+      doc.fillColor("#000000")
+        .font("Helvetica")
+        .fontSize(11);
+
+      doc.text(ev.segment, 50, y + 8);
+      doc.text(ev.score.toString(), 260, y + 8);
+      doc.text(ev.comment || "-", 330, y + 8);
+      doc.text(`eval ${ev.evaluatorId}`, 500, y + 8);
+
+      y += 28;
+
+      if (y > 750) {
+        doc.addPage();
+        y = 40;
       }
-    }
+    });
 
-    y -= 20;
+    doc.moveDown(2);
 
-    write(`Overall Weighted Score: ${finalScore.toFixed(2)} / 10`, 14);
+    /* =======================
+       OVERALL SCORE BOX
+    ======================== */
+    doc.rect(40, y + 20, doc.page.width - 80, 80)
+      .fill("#FACC15"); // Yellow box
 
-    // Output PDF
-    const pdfBytes = await pdf.save();
+    doc.fillColor("#000000")
+      .font("Helvetica-Bold")
+      .fontSize(22)
+      .text("Overall Score", 60, y + 35);
 
-    return new Response(pdfBytes, {
+    doc.font("Helvetica")
+      .fontSize(16)
+      .text(`${weightedScore.toFixed(2)} / 10`, 300, y + 38);
+
+    doc.end();
+
+    const pdfBuffer = Buffer.concat(chunks);
+    return new Response(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Vendor_Report_${vendor.name}.pdf"`,
+        "Content-Disposition": `attachment; filename=vendor_${vendor.id}_report.pdf`,
       },
     });
   } catch (err) {
-    console.error("PDF Report Error:", err);
-    return NextResponse.json(
-      { error: "Failed to generate report" },
-      { status: 500 }
-    );
+    console.error(err);
+    return NextResponse.json({ error: "Failed to generate report" }, { status: 500 });
   }
 }
