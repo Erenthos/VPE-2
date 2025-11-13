@@ -5,68 +5,66 @@ import { useEffect, useState } from "react";
 export default function VendorEvaluationForm({ vendor, onClose }: any) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [responses, setResponses] = useState<any>({});
-  const [loading, setLoading] = useState(true);
+  const [questionsLoaded, setQuestionsLoaded] = useState(false);
+  const [responsesLoaded, setResponsesLoaded] = useState(false);
 
-  // Re-mount the form when vendor changes (CRITICAL FIX)
+  const isReady = questionsLoaded && responsesLoaded;
+
   useEffect(() => {
+    // Reset everything when vendor changes
     setQuestions([]);
     setResponses({});
-    setLoading(true);
+    setQuestionsLoaded(false);
+    setResponsesLoaded(false);
   }, [vendor]);
 
-  // Load questions + existing evaluations
   useEffect(() => {
-    async function loadData() {
-      try {
-        // Decode JWT
-        const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-        const evaluatorId = token.id;
+    async function loadEverything() {
+      const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
+      const evaluatorId = token.id;
 
-        // 1. Load segments + questions
-        const segRes = await fetch("/api/segments-all");
-        const segments = await segRes.json();
+      // 1. Load questions
+      const segRes = await fetch("/api/segments-all");
+      const segments = await segRes.json();
 
-        let qList: any[] = [];
-        segments.forEach((s: any) => {
-          s.questions.forEach((q: any) => {
-            qList.push({
-              id: q.id,
-              text: q.text,
-              segment: `Q-${q.id}`,
-              segmentName: s.name,
-              weight: q.weight,
-            });
+      const qList: any[] = [];
+      segments.forEach((s: any) => {
+        s.questions.forEach((q: any) => {
+          qList.push({
+            id: q.id,
+            text: q.text,
+            segment: `Q-${q.id}`,
+            segmentName: s.name,
+            weight: q.weight
           });
         });
+      });
 
-        setQuestions(qList);
+      setQuestions(qList);
+      setQuestionsLoaded(true);
 
-        // 2. Load previously saved evaluations
-        const evRes = await fetch(
-          `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluatorId}`
-        );
-        const existing = await evRes.json();
+      // 2. Load existing evaluations
+      const evRes = await fetch(
+        `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluatorId}`
+      );
+      const existing = await evRes.json();
 
-        const mapped: any = {};
-        existing.forEach((ev: any) => {
-          mapped[ev.segment] = {
-            score: ev.score,
-            comment: ev.comment || "",
-          };
-        });
+      const rmap: any = {};
+      existing.forEach((ev: any) => {
+        rmap[ev.segment] = {
+          score: ev.score,
+          comment: ev.comment || ""
+        };
+      });
 
-        setResponses(mapped);
-
-      } finally {
-        // Only stop loading AFTER questions + evaluations are both loaded
-        setLoading(false);
-      }
+      setResponses(rmap);
+      setResponsesLoaded(true);
     }
 
-    loadData();
+    loadEverything();
   }, [vendor]);
 
-  function setValue(segment: string, field: "score" | "comment", value: any) {
+  function setValue(segment: string, field: string, value: any) {
     setResponses((prev: any) => ({
       ...prev,
       [segment]: {
@@ -91,7 +89,7 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
           evaluatorId,
           segment: q.segment,
           score: r.score,
-          comment: r.comment,
+          comment: r.comment
         }),
       });
     }
@@ -100,14 +98,18 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
     onClose();
   }
 
-  // DO NOT render sliders until everything is fully loaded
-  if (loading || questions.length === 0) {
-    return <div className="text-center p-4">Loading previous evaluation...</div>;
+  // The fix: DO NOT RENDER SLIDERS until EVERYTHING is loaded
+  if (!isReady) {
+    return (
+      <div className="text-center p-4">
+        Loading previous evaluation...
+      </div>
+    );
   }
 
   return (
     <div
-      key={vendor.id} // <- CRITICAL: Forces full re-render
+      key={vendor.id}
       className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur"
     >
       <h3 className="text-xl font-semibold mb-4">
@@ -118,15 +120,12 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
         <div key={q.id} className="mb-6 p-3 bg-white/5 rounded-lg">
           <div className="font-semibold mb-2">{q.text}</div>
 
-          {/* Slider */}
           <input
             type="range"
             min={0}
             max={10}
             value={responses[q.segment]?.score ?? 0}
-            onChange={(e) =>
-              setValue(q.segment, "score", Number(e.target.value))
-            }
+            onChange={(e) => setValue(q.segment, "score", Number(e.target.value))}
             className="w-full"
           />
 
@@ -134,14 +133,11 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
             Score: {responses[q.segment]?.score ?? 0}
           </div>
 
-          {/* Comment */}
           <textarea
             placeholder="Add comment..."
             className="w-full mt-2 p-2 bg-white/10 border border-white/20 rounded"
             value={responses[q.segment]?.comment ?? ""}
-            onChange={(e) =>
-              setValue(q.segment, "comment", e.target.value)
-            }
+            onChange={(e) => setValue(q.segment, "comment", e.target.value)}
           />
         </div>
       ))}
