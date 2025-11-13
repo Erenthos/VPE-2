@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 
     // ---------- PDF GENERATION START ----------
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage();
+    let page = pdfDoc.addPage();     // ❗ let — allows reassignment
     const { width } = page.getSize();
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -131,7 +131,7 @@ export async function GET(req: Request) {
 
       // Add new page if needed
       if (y < 50) {
-        page = pdfDoc.addPage();
+        page = pdfDoc.addPage();   // ← Now works because page is LET
         y = 780;
       }
     }
