@@ -169,7 +169,7 @@ export async function GET(req: Request): Promise<Response> {
     // Puppeteer PDF Generation (Vercel Compatible)
     // -------------------------------------------------------------
     const browser = await puppeteer.launch({
-      headless: "new",
+      headless: "shell",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
