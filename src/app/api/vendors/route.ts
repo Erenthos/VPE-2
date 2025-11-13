@@ -1,33 +1,29 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// 📍 GET  – fetch all vendors
-export async function GET() {
-  try {
-    const vendors = await prisma.vendor.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    return NextResponse.json(vendors);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error fetching vendors" }, { status: 500 });
-  }
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const search = searchParams.get("search") || "";
+
+  const vendors = await prisma.vendor.findMany({
+    where: {
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { company: { contains: search, mode: "insensitive" } }
+      ]
+    },
+    orderBy: { name: "asc" },
+    take: 50   // LIMIT results for safety
+  });
+
+  return NextResponse.json(vendors);
 }
 
-// 📍 POST – create new vendor
 export async function POST(req: Request) {
-  try {
-    const { name, company, email } = await req.json();
-    if (!name) return NextResponse.json({ error: "Vendor name required" }, { status: 400 });
+  const { name, company, email } = await req.json();
+  const newVendor = await prisma.vendor.create({
+    data: { name, company, email }
+  });
 
-    const vendor = await prisma.vendor.create({
-      data: { name, company, email },
-    });
-
-    return NextResponse.json({ message: "Vendor added", vendor });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error adding vendor" }, { status: 500 });
-  }
+  return NextResponse.json(newVendor);
 }
-
