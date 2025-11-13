@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import SegmentManager from "@/src/components/admin/SegmentManager";
+import SegmentManager from "@/components/admin/SegmentManager";
 
 export default function AdminPage() {
   const router = useRouter();
