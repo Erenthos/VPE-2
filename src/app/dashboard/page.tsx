@@ -124,7 +124,7 @@ export default function DashboardPage() {
 
           <VendorSearchList
             mode="evaluate"
-            onSelect={(vendor) => setSelectedVendor(vendor)}
+            onSelect={(vendor: any) => setSelectedVendor(vendor)}
           />
 
           {selectedVendor && (
