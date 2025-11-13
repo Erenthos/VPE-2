@@ -14,7 +14,7 @@
     "chrome-aws-lambda": "10.1.0",
     "jsonwebtoken": "9.0.2",
     "next": "14.2.4",
-    "puppeteer-core": "21.3.8",
+    "puppeteer-core": "10.4.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
