@@ -3,64 +3,85 @@
 import { useEffect, useState } from "react";
 
 export default function VendorEvaluationForm({ vendor, onClose }: any) {
-  const [segments, setSegments] = useState<any[]>([]);
-  const [questions, setQuestions] = useState<any[]>( []);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [responses, setResponses] = useState<any>({});
+  const [loading, setLoading] = useState(true);
 
-  // For storing sliders & comments: { questionId: score }
-  const [scores, setScores] = useState<any>({});
-  const [comments, setComments] = useState<any>({});
+  // Load segments + questions + previous evaluations
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
 
-  // Load segments + questions
-  async function loadData() {
-    const segRes = await fetch("/api/segments");
-    const segData = await segRes.json();
-    setSegments(segData);
+      // 1. load segments & questions
+      const segRes = await fetch("/api/segments-all"); // you already have SegmentManager using this
+      const segments = await segRes.json();
 
-    const qRes = await fetch("/api/questions");
-    const qData = await qRes.json();
-    setQuestions(qData);
+      let qList: any[] = [];
+      segments.forEach((s: any) => {
+        s.questions.forEach((q: any) => {
+          qList.push({
+            id: q.id,
+            text: q.text,
+            segment: `Q-${q.id}`,
+            weight: q.weight,
+            segmentName: s.name
+          });
+        });
+      });
 
-    // Load previous evaluator data
-    const token = localStorage.getItem("token");
-    const evaluator = JSON.parse(atob(token!.split(".")[1]));
+      setQuestions(qList);
 
-    const evalRes = await fetch(
-      `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${evaluator.id}`
-    );
-    const evalData = await evalRes.json();
+      // 2. load saved evaluations
+      const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
 
-    const prevScores: any = {};
-    const prevComments: any = {};
+      const evRes = await fetch(
+        `/api/evaluations?vendorId=${vendor.id}&evaluatorId=${token.userId}`
+      );
 
-    evalData.forEach((e: any) => {
-      prevScores[e.segment] = e.score;
-      prevComments[e.segment] = e.comment;
-    });
+      const existing = await evRes.json();
 
-    setScores(prevScores);
-    setComments(prevComments);
+      // 3. map existing answers to form state
+      const mapped: any = {};
+      existing.forEach((ev: any) => {
+        mapped[ev.segment] = {
+          score: ev.score,
+          comment: ev.comment || ""
+        };
+      });
+
+      setResponses(mapped);
+      setLoading(false);
+    }
+
+    loadData();
+  }, [vendor]);
+
+  function setValue(segment: string, field: "score" | "comment", value: any) {
+    setResponses((prev: any) => ({
+      ...prev,
+      [segment]: {
+        ...prev[segment],
+        [field]: value
+      }
+    }));
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  async function save() {
+    const token = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
 
-  async function saveEvaluation() {
-    const token = localStorage.getItem("token");
-    const evaluator = JSON.parse(atob(token!.split(".")[1]));
+    for (let q of questions) {
+      const r = responses[q.segment] || { score: 0, comment: "" };
 
-    // Save question-level evaluations
-    for (const q of questions) {
       await fetch("/api/evaluations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorId: vendor.id,
-          evaluatorId: evaluator.id,
-          segment: `Q-${q.id}`, // store question-level key
-          score: scores[q.id] || 0,
-          comment: comments[q.id] || "",
-        }),
+          evaluatorId: token.userId,
+          segment: q.segment,
+          score: r.score,
+          comment: r.comment
+        })
       });
     }
 
@@ -68,74 +89,61 @@ export default function VendorEvaluationForm({ vendor, onClose }: any) {
     onClose();
   }
 
+  if (loading) {
+    return <div className="text-center p-4">Loading evaluation...</div>;
+  }
+
   return (
-    <div className="w-full max-w-3xl mx-auto text-white">
-      <h2 className="text-2xl font-bold mb-6">
+    <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur">
+      <h3 className="text-xl font-semibold mb-4">
         Evaluate {vendor.name}
-      </h2>
+      </h3>
 
-      {segments.map((seg) => (
-        <div key={seg.id} className="mb-10">
-          <h3 className="text-xl font-semibold mb-4">
-            {seg.name}
-          </h3>
+      {/* QUESTIONS */}
+      {questions.map((q) => (
+        <div key={q.id} className="mb-6 p-3 bg-white/5 rounded-lg">
 
-          {/* list questions under this segment */}
-          {questions
-            .filter((q) => q.segmentId === seg.id)
-            .map((q) => (
-              <div key={q.id} className="mb-6">
-                <p className="mb-1 font-medium">{q.text}</p>
+          <div className="font-semibold mb-2">{q.text}</div>
 
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={scores[q.id] || 0}
-                  onChange={(e) =>
-                    setScores({
-                      ...scores,
-                      [q.id]: Number(e.target.value),
-                    })
-                  }
-                  className="w-full"
-                />
+          {/* Slider */}
+          <input
+            type="range"
+            min={0}
+            max={10}
+            value={(responses[q.segment]?.score) ?? 0}
+            onChange={(e) =>
+              setValue(q.segment, "score", Number(e.target.value))
+            }
+            className="w-full"
+          />
 
-                <input
-                  type="text"
-                  placeholder="Add comment..."
-                  className="w-full mt-2 p-2 rounded bg-white/10 border border-white/20"
-                  value={comments[q.id] || ""}
-                  onChange={(e) =>
-                    setComments({
-                      ...comments,
-                      [q.id]: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            ))}
+          <div className="mt-1 text-sm text-white/70">
+            Score: {responses[q.segment]?.score ?? 0}
+          </div>
 
-          {/* If no questions under this segment */}
-          {questions.filter((q) => q.segmentId === seg.id).length === 0 && (
-            <p className="text-white/50 text-sm italic">
-              No questions added under this segment (Admin must add questions)
-            </p>
-          )}
+          {/* Comment box */}
+          <textarea
+            placeholder="Add comment..."
+            className="w-full mt-2 p-2 bg-white/10 border border-white/20 rounded"
+            value={responses[q.segment]?.comment ?? ""}
+            onChange={(e) =>
+              setValue(q.segment, "comment", e.target.value)
+            }
+          />
         </div>
       ))}
 
-      <div className="flex justify-end gap-4">
+      <div className="flex justify-end gap-4 mt-4">
         <button
           onClick={onClose}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded"
         >
           Cancel
         </button>
 
         <button
-          onClick={saveEvaluation}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg"
+          onClick={save}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded"
         >
           Save
         </button>
