@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config) => {
-    // Ignore ALL .map files (fix chrome-aws-lambda source map crash)
-    config.module.rules.push({
-      test: /\.map$/,
-      type: "asset/source",
-    });
+    // FIX 1 — Ignore electron module required by playwright-core
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      electron: false,
+      fs: false,
+      path: false
+    };
 
     return config;
   },
