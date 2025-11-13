@@ -1,31 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import PDFDocument from "pdfkit";
-import { Readable } from "stream";
 
-// Utility: Convert PDF to Response
-function streamToResponse(doc: PDFDocument, filename: string) {
-  const stream = doc.pipe(Readable.from([]));
-
-  const chunks: any[] = [];
-  return new Promise((resolve) => {
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => {
-      const pdfBuffer = Buffer.concat(chunks);
-
-      resolve(
-        new NextResponse(pdfBuffer, {
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="${filename}"`,
-          },
-        })
-      );
-    });
-  });
-}
-
-export async function GET(req: Request) {
+export async function GET(req: Request): Promise<Response> {
   try {
     const { searchParams } = new URL(req.url);
     const vendorId = searchParams.get("vendorId");
@@ -36,7 +13,6 @@ export async function GET(req: Request) {
 
     const vendorIdNum = Number(vendorId);
 
-    // Load vendor
     const vendor = await prisma.vendor.findUnique({
       where: { id: vendorIdNum },
     });
@@ -56,23 +32,19 @@ export async function GET(req: Request) {
       include: { evaluator: true },
     });
 
-    // ──────────────────────────────────────────────
-    //  Weighted Score Calculation
-    // ──────────────────────────────────────────────
-
+    // Weighted score calculation
     let totalWeighted = 0;
     let totalSegmentWeights = 0;
 
     for (const seg of segments) {
       const qs = seg.questions;
-
       if (qs.length === 0) continue;
 
       let qWeightedSum = 0;
       let qWeightTotal = 0;
 
       for (const q of qs) {
-        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
+        const ev = evaluations.find(e => e.segment === `Q-${q.id}`);
         const score = ev ? ev.score : 0;
 
         qWeightedSum += score * q.weight;
@@ -85,16 +57,19 @@ export async function GET(req: Request) {
     }
 
     const finalScore =
-      totalSegmentWeights === 0
-        ? 0
-        : totalWeighted / totalSegmentWeights;
+      totalSegmentWeights === 0 ? 0 : totalWeighted / totalSegmentWeights;
 
     // ──────────────────────────────────────────────
-    //  PDF GENERATION
+    // Generate PDF into a buffer (NO STREAMS)
     // ──────────────────────────────────────────────
 
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const doc = new PDFDocument({ margin: 50 });
+    const buffers: Buffer[] = [];
 
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => {});
+
+    // PDF contents
     doc.fontSize(20).text("Vendor Performance Report", { align: "center" });
     doc.moveDown();
 
@@ -106,7 +81,6 @@ export async function GET(req: Request) {
     doc.fontSize(14).text("Evaluations:", { underline: true });
     doc.moveDown();
 
-    // Table Header
     doc.fontSize(12);
     doc.text("Question", 50, doc.y, { continued: true });
     doc.text("Score", 250, doc.y, { continued: true });
@@ -114,24 +88,16 @@ export async function GET(req: Request) {
     doc.text("Evaluator", 450, doc.y);
     doc.moveDown();
 
-    // Evaluations per question
     for (const seg of segments) {
-      const qs = seg.questions;
+      for (const q of seg.questions) {
+        const ev = evaluations.find(e => e.segment === `Q-${q.id}`);
 
-      for (const q of qs) {
-        const ev = evaluations.find((e) => e.segment === `Q-${q.id}`);
         doc.text(q.text, 50, doc.y, { continued: true });
-
-        doc.text(ev ? ev.score.toString() : "-", 250, doc.y, {
-          continued: true,
-        });
-
+        doc.text(ev ? ev.score.toString() : "-", 250, doc.y, { continued: true });
         doc.text(ev ? ev.comment || "-" : "-", 310, doc.y, { continued: true });
-
         doc.text(
           ev ? `${ev.evaluator.name} (${ev.evaluator.role})` : "-",
-          450,
-          doc.y
+          450, doc.y
         );
 
         doc.moveDown();
@@ -140,7 +106,6 @@ export async function GET(req: Request) {
 
     doc.moveDown(2);
 
-    // Overall Weighted Score
     doc.fontSize(14).text(
       `Overall Weighted Score: ${finalScore.toFixed(2)} / 10`,
       { align: "left" }
@@ -148,9 +113,20 @@ export async function GET(req: Request) {
 
     doc.end();
 
-    return await streamToResponse(doc, `Vendor_Report_${vendor.name}.pdf`);
+    // Final buffer
+    const pdfBuffer = await new Promise<Buffer>((resolve) => {
+      doc.on("end", () => resolve(Buffer.concat(buffers)));
+    });
+
+    return new Response(pdfBuffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="Vendor_Report_${vendor.name}.pdf"`
+      }
+    });
+
   } catch (error) {
-    console.error("Report Error:", error);
+    console.error(error);
     return NextResponse.json(
       { error: "Failed to generate report" },
       { status: 500 }
