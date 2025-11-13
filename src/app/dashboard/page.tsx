@@ -5,18 +5,21 @@ import { useRouter } from "next/navigation";
 import VendorList from "@/components/vendors/VendorList";
 import VendorSearchList from "@/components/vendors/VendorSearchList";
 import VendorEvaluationForm from "@/components/vendors/VendorEvaluationForm";
+import SegmentManager from "@/components/admin/SegmentManager";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
 
+  // Modal visibility states
   const [showVendors, setShowVendors] = useState(false);
   const [showEvaluate, setShowEvaluate] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
 
-  // Decode JWT
+  // Decode JWT stored in localStorage
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -36,7 +39,7 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
-        <p>Loading dashboard...</p>
+        Loading dashboard...
       </div>
     );
   }
@@ -69,7 +72,8 @@ export default function DashboardPage() {
         {/* Add/View Vendors */}
         <div
           onClick={() => setShowVendors(true)}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 
+          backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
           <h3 className="text-xl font-semibold mb-3">Add / View Vendors</h3>
           <p className="text-sm text-white/70">Search, add or view vendors.</p>
@@ -81,7 +85,8 @@ export default function DashboardPage() {
             setSelectedVendor(null);
             setShowEvaluate(true);
           }}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 
+          backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
           <h3 className="text-xl font-semibold mb-3">Evaluate Vendors</h3>
           <p className="text-sm text-white/70">Search vendor and evaluate.</p>
@@ -90,15 +95,31 @@ export default function DashboardPage() {
         {/* View Reports */}
         <div
           onClick={() => setShowReports(true)}
-          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 
+          backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
         >
           <h3 className="text-xl font-semibold mb-3">View Reports</h3>
           <p className="text-sm text-white/70">Search vendor and download report.</p>
         </div>
 
+        {/* ADMIN PANEL CARD */}
+        {user.role === "ADMIN" && (
+          <div
+            onClick={() => setShowAdmin(true)}
+            className="cursor-pointer p-6 rounded-2xl bg-red-500/20 border border-red-400/30 
+            backdrop-blur-md hover:bg-red-500/30 transition-all shadow-xl md:col-span-3"
+          >
+            <h3 className="text-xl font-semibold mb-3">
+              Admin Panel — Manage Segments & Questions
+            </h3>
+            <p className="text-sm text-white/70">
+              Add/Edit/Delete segments, change weightage, and manage questions.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Logout */}
+      {/* Logout Button */}
       <button
         className="mt-12 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 transition font-medium"
         onClick={() => {
@@ -108,6 +129,8 @@ export default function DashboardPage() {
       >
         Logout
       </button>
+
+      {/* ------------------------ MODALS ------------------------ */}
 
       {/* Add / View Vendors Modal */}
       {showVendors && (
@@ -146,15 +169,28 @@ export default function DashboardPage() {
         </Modal>
       )}
 
+      {/* Admin Panel Modal */}
+      {showAdmin && (
+        <Modal onClose={() => setShowAdmin(false)}>
+          <h2 className="text-2xl font-bold mb-4 text-center">Admin Panel — Manage Segments & Questions</h2>
+          <SegmentManager />
+        </Modal>
+      )}
+
     </div>
   );
 }
 
+/* ------------------------ SHARED MODAL COMPONENT ------------------------ */
+
 function Modal({ onClose, children }: any) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
-      <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20 w-full max-w-5xl max-h-[85vh] overflow-y-auto shadow-xl">
+      <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20
+       w-full max-w-5xl max-h-[85vh] overflow-y-auto shadow-xl">
+        
         {children}
+
         <div className="text-center mt-6">
           <button
             onClick={onClose}
@@ -163,6 +199,7 @@ function Modal({ onClose, children }: any) {
             Close
           </button>
         </div>
+
       </div>
     </div>
   );
