@@ -2,22 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-// Components
 import VendorList from "@/components/vendors/VendorList";
-import VendorEvaluationList from "@/components/vendors/VendorEvaluationList";
-import VendorReportList from "@/components/vendors/VendorReportList";
-import SegmentManager from "@/components/admin/SegmentManager";
+import VendorSearchList from "@/components/vendors/VendorSearchList";
+import VendorEvaluationForm from "@/components/vendors/VendorEvaluationForm";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
 
-  // Modal states
   const [showVendors, setShowVendors] = useState(false);
   const [showEvaluate, setShowEvaluate] = useState(false);
   const [showReports, setShowReports] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
+
+  const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
 
   // Decode JWT
   useEffect(() => {
@@ -31,6 +28,7 @@ export default function DashboardPage() {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setUser(payload);
     } catch {
+      localStorage.removeItem("token");
       router.push("/auth/signin");
     }
   }, [router]);
@@ -54,7 +52,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white flex flex-col items-center py-16 px-6">
 
       {/* Header */}
-      <h1 className="text-4xl font-bold text-center mb-4 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+      <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
         Welcome, {user.name}
       </h1>
 
@@ -63,80 +61,88 @@ export default function DashboardPage() {
         <span className={`font-semibold bg-gradient-to-r ${roleColor} bg-clip-text text-transparent`}>
           {user.role}
         </span>
-        .
       </p>
 
       {/* Dashboard Cards */}
       <div className="grid gap-8 grid-cols-1 md:grid-cols-3 w-full max-w-5xl">
 
         {/* Add/View Vendors */}
-        <Card
-          title="Add / View Vendors"
-          desc="Add new vendors or view existing ones."
+        <div
           onClick={() => setShowVendors(true)}
-        />
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+        >
+          <h3 className="text-xl font-semibold mb-3">Add / View Vendors</h3>
+          <p className="text-sm text-white/70">Search, add or view vendors.</p>
+        </div>
 
         {/* Evaluate Vendors */}
-        <Card
-          title="Evaluate Vendors"
-          desc="Rate vendors and add comments segment-wise."
-          onClick={() => setShowEvaluate(true)}
-        />
+        <div
+          onClick={() => {
+            setSelectedVendor(null);
+            setShowEvaluate(true);
+          }}
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+        >
+          <h3 className="text-xl font-semibold mb-3">Evaluate Vendors</h3>
+          <p className="text-sm text-white/70">Search vendor and evaluate.</p>
+        </div>
 
         {/* View Reports */}
-        <Card
-          title="View Reports"
-          desc="Download performance PDF reports."
+        <div
           onClick={() => setShowReports(true)}
-        />
-
-        {/* Admin Panel (only for ADMIN) */}
-        {user.role === "ADMIN" && (
-          <Card
-            title="Admin Panel"
-            desc="Manage segments, weights, and evaluation structure."
-            onClick={() => setShowAdmin(true)}
-          />
-        )}
+          className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
+        >
+          <h3 className="text-xl font-semibold mb-3">View Reports</h3>
+          <p className="text-sm text-white/70">Search vendor and download report.</p>
+        </div>
 
       </div>
 
       {/* Logout */}
       <button
+        className="mt-12 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 transition font-medium"
         onClick={() => {
           localStorage.removeItem("token");
           router.push("/auth/signin");
         }}
-        className="mt-12 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 transition font-medium"
       >
         Logout
       </button>
 
-      {/* Vendor Modal */}
+      {/* Add / View Vendors Modal */}
       {showVendors && (
-        <Modal title="Vendor Management" onClose={() => setShowVendors(false)}>
+        <Modal onClose={() => setShowVendors(false)}>
+          <h2 className="text-2xl font-bold mb-4 text-center">Vendor Management</h2>
           <VendorList />
         </Modal>
       )}
 
       {/* Evaluate Vendors Modal */}
       {showEvaluate && (
-        <Modal title="Evaluate Vendors" onClose={() => setShowEvaluate(false)}>
-          <VendorEvaluationList />
+        <Modal onClose={() => { setShowEvaluate(false); setSelectedVendor(null); }}>
+          <h2 className="text-2xl font-bold mb-4 text-center">Evaluate Vendors</h2>
+
+          <VendorSearchList
+            mode="evaluate"
+            onSelect={(vendor) => setSelectedVendor(vendor)}
+          />
+
+          {selectedVendor && (
+            <div className="mt-8">
+              <VendorEvaluationForm
+                vendor={selectedVendor}
+                onClose={() => setSelectedVendor(null)}
+              />
+            </div>
+          )}
         </Modal>
       )}
 
-      {/* Reports Modal */}
+      {/* View Reports Modal */}
       {showReports && (
-        <Modal title="Vendor Reports" onClose={() => setShowReports(false)}>
-          <VendorReportList />
-        </Modal>
-      )}
-
-      {/* Admin Modal */}
-      {showAdmin && (
-        <Modal title="Admin Panel — Segment Management" onClose={() => setShowAdmin(false)}>
-          <SegmentManager />
+        <Modal onClose={() => setShowReports(false)}>
+          <h2 className="text-2xl font-bold mb-4 text-center">Download Vendor Reports</h2>
+          <VendorSearchList mode="report" />
         </Modal>
       )}
 
@@ -144,28 +150,11 @@ export default function DashboardPage() {
   );
 }
 
-/* Card Component */
-function Card({ title, desc, onClick }: any) {
+function Modal({ onClose, children }: any) {
   return (
-    <div
-      onClick={onClick}
-      className="cursor-pointer p-6 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all shadow-xl"
-    >
-      <h3 className="text-xl font-semibold mb-3">{title}</h3>
-      <p className="text-sm text-white/70">{desc}</p>
-    </div>
-  );
-}
-
-/* Reusable Modal Component */
-function Modal({ title, children, onClose }: any) {
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20 max-h-[80vh] overflow-y-auto w-full max-w-5xl shadow-2xl">
-        <h2 className="text-2xl font-bold mb-4 text-center">{title}</h2>
-
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
+      <div className="bg-white/10 backdrop-blur-xl p-6 rounded-2xl border border-white/20 w-full max-w-5xl max-h-[85vh] overflow-y-auto shadow-xl">
         {children}
-
         <div className="text-center mt-6">
           <button
             onClick={onClose}
